@@ -5,19 +5,20 @@ on:
     branches: [ "main" ]
   pull_request:
     branches: [ "main" ]
-  workflow_dispatch: # 支持手动点击按钮构建
+  workflow_dispatch:
 
 env:
   REGISTRY: ghcr.io
-  # 镜像名字会自动变为：ghcr.io/你的用户名/仓库名
   IMAGE_NAME: ${{ github.repository }}
 
 jobs:
   build:
     runs-on: ubuntu-latest
+    # 必须显式声明权限，否则 gh pr merge 命令会报 403 错误
     permissions:
       contents: write
       packages: write
+      pull-requests: write
 
     steps:
       - name: Checkout repository
@@ -33,20 +34,24 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      # 关键逻辑：
+      # 如果是 PR（Dependabot 发起的），只执行编译测试（push: false）
+      # 如果是合并到 main 后的 push，执行编译并推送（push: true）
       - name: Build and push Docker image
         uses: docker/build-push-action@v5
         with:
           context: .
-          push: ${{ github.event_name != 'pull_request' }}
+          push: ${{ github.event_name == 'push' || github.event_name == 'workflow_dispatch' }}
           tags: |
             ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
             ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-      # 自动合并 Dependabot 发起的 PR（可选，需要你在仓库设置里开启 Allow auto-merge）
+      # 自动合并逻辑：
+      # 当且仅当这是由 dependabot 发起的 PR，且上面的 Build 步骤成功时执行
       - name: Enable auto-merge for Dependabot PRs
-        if: github.event.pull_request.user.login == 'dependabot[bot]'
+        if: github.event_name == 'pull_request' && github.event.pull_request.user.login == 'dependabot[bot]'
         run: gh pr merge --auto --merge "$PR_URL"
         env:
           PR_URL: ${{ github.event.pull_request.html_url }}
