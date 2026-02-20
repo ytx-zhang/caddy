@@ -1,6 +1,8 @@
 # 第一阶段：编译
 FROM caddy:2.10.2-builder AS builder
-RUN xcaddy build --with github.com/caddy-dns/cloudflare
+RUN xcaddy build \
+    --with github.com/caddy-dns/cloudflare \
+    --with github.com/caddyserver/cache-handler
 
 # 第二阶段：运行环境
 FROM alpine:3.23.3
