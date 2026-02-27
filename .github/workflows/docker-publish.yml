@@ -9,7 +9,6 @@ on:
 
 env:
   REGISTRY: ghcr.io
-  IMAGE_NAME: ${{ github.repository }}
 
 jobs:
   build:
@@ -24,6 +23,12 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      # 1. 关键修复：处理镜像名大小写问题
+      # 将 GitHub 仓库路径转为全小写（例如 MyUser/MyRepo -> myuser/myrepo）
+      - name: Prepare Image Name
+        run: |
+          echo "IMAGE_NAME_LOWER=${GITHUB_REPOSITORY,,}" >> $GITHUB_ENV
+
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
@@ -34,22 +39,20 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      # 关键逻辑：
-      # 如果是 PR（Dependabot 发起的），只执行编译测试（push: false）
-      # 如果是合并到 main 后的 push，执行编译并推送（push: true）
+      # 2. 关键逻辑修复：
+      # 修改 push 条件：如果是 main 分支的 push、手动触发、或是 Dependabot 的 PR，都执行推送
       - name: Build and push Docker image
         uses: docker/build-push-action@v5
         with:
           context: .
-          push: ${{ github.event_name == 'push' || github.event_name == 'workflow_dispatch' }}
+          push: ${{ github.event_name == 'push' || github.event_name == 'workflow_dispatch' || (github.event_name == 'pull_request' && github.actor == 'dependabot[bot]') }}
           tags: |
-            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
-            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}:latest
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}:${{ github.sha }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-      # 自动合并逻辑：
-      # 当且仅当这是由 dependabot 发起的 PR，且上面的 Build 步骤成功时执行
+      # 自动合并逻辑
       - name: Enable auto-merge for Dependabot PRs
         if: github.event_name == 'pull_request' && github.event.pull_request.user.login == 'dependabot[bot]'
         run: gh pr merge --auto --merge "$PR_URL"
