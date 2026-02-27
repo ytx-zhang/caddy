@@ -7,9 +7,7 @@ FROM alpine:3.23.3
 
 # 1. 安装 tzdata 并设置时区
 # 2. 安装 ca-certificates (Caddy 访问 ZeroSSL API 必须)
-RUN apk add --no-cache tzdata ca-certificates \
-    && cp /usr/share/zoneinfo/Asia/Shanghai /etc/localtime \
-    && echo "Asia/Shanghai" > /etc/timezone
+RUN apk add --no-cache tzdata ca-certificates
 
 # 设置环境变量
 ENV TZ=Asia/Shanghai
