@@ -11,9 +11,8 @@ env:
   REGISTRY: ghcr.io
 
 jobs:
-  build:
+  build-and-deploy:
     runs-on: ubuntu-latest
-    # 必须显式声明权限，否则 gh pr merge 命令会报 403 错误
     permissions:
       contents: write
       packages: write
@@ -21,38 +20,46 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@main
 
-      # 1. 关键修复：处理镜像名大小写问题
-      # 将 GitHub 仓库路径转为全小写（例如 MyUser/MyRepo -> myuser/myrepo）
       - name: Prepare Image Name
         run: |
           echo "IMAGE_NAME_LOWER=${GITHUB_REPOSITORY,,}" >> $GITHUB_ENV
 
+      - name: Set up Go
+        uses: actions/setup-go@main
+        with:
+          go-version: 'stable' 
+          cache: true
+
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
+        uses: docker/setup-buildx-action@master
 
       - name: Log in to the Container registry
-        uses: docker/login-action@v3
+        uses: docker/login-action@master
         with:
           registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      # 2. 关键逻辑修复：
-      # 修改 push 条件：如果是 main 分支的 push、手动触发、或是 Dependabot 的 PR，都执行推送
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@master
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}
+          tags: |
+            type=raw,value=latest
+            type=sha,format=short
+
       - name: Build and push Docker image
-        uses: docker/build-push-action@v5
+        uses: docker/build-push-action@master
         with:
           context: .
           push: ${{ github.event_name == 'push' || github.event_name == 'workflow_dispatch' || (github.event_name == 'pull_request' && github.actor == 'dependabot[bot]') }}
-          tags: |
-            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}:latest
-            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}:${{ github.sha }}
+          tags: ${{ steps.meta.outputs.tags }}
           cache-from: type=gha
-          cache-to: type=gha,mode=max
+          cache-to: false 
 
-      # 自动合并逻辑
       - name: Enable auto-merge for Dependabot PRs
         if: github.event_name == 'pull_request' && github.event.pull_request.user.login == 'dependabot[bot]'
         run: gh pr merge --auto --merge "$PR_URL"

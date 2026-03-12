@@ -3,7 +3,7 @@ updates:
   - package-ecosystem: "docker"
     directory: "/"
     schedule:
-      interval: "daily" # 每天检查一次 Caddy 是否发布了 2.9 或更高版本
+      interval: "daily"
     labels:
       - "dependencies"
       - "automated-pr"
