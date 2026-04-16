@@ -3,7 +3,7 @@ FROM caddy:2.11.2-builder AS builder
 RUN xcaddy build --with github.com/caddy-dns/cloudflare
 
 # 第二阶段：运行环境
-FROM alpine:3.23.3
+FROM alpine:3.23.4
 
 # 1. 安装 tzdata 并设置时区
 # 2. 安装 ca-certificates (Caddy 访问 ZeroSSL API 必须)
