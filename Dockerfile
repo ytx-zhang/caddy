@@ -1,5 +1,5 @@
 # 第一阶段：编译
-FROM caddy:2.11.3-builder AS builder
+FROM caddy:2.11.4-builder AS builder
 RUN xcaddy build --with github.com/caddy-dns/cloudflare
 
 # 第二阶段：运行环境
